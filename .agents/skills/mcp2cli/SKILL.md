@@ -63,34 +63,17 @@ Options:
   --oauth                 Enable OAuth (authorization code + PKCE flow)
   --oauth-client-id ID    OAuth client ID (supports env:/file: prefixes)
   --oauth-client-secret S OAuth client secret (supports env:/file: prefixes)
-  --oauth-client-name N   OAuth client name for dynamic client registration
   --oauth-scope SCOPE     OAuth scope(s) to request
-  --oauth-redirect-uri U  Full OAuth callback URI
-  --oauth-flow FLOW       OAuth flow: auto|authorization_code|client_credentials
-  --session-start NAME    Start a persistent MCP session daemon
-  --session-stop NAME     Stop a named MCP session
-  --session-list          List active MCP sessions
-  --session NAME          Use an existing MCP session
   --cache-key KEY         Custom cache key
   --cache-ttl SECONDS     Cache TTL (default: 3600)
   --refresh               Bypass cache
   --list                  List available subcommands
   --search PATTERN        Search tools by name or description (implies --list)
-  --verbose               Show full descriptions in --list output
-  --sort MODE             Sort --list output: usage|recent|alpha|default
-  --top N                 Show only top N tools in --list output
-  --compact               Print tool names only in --list output
-  --list-resources        List MCP resources
-  --list-resource-templates List MCP resource templates
-  --read-resource URI     Read an MCP resource by URI
-  --list-prompts          List MCP prompts
-  --get-prompt NAME       Get an MCP prompt by name
-  --prompt-arg K=V        Argument for --get-prompt (repeatable)
   --fields FIELDS         Override GraphQL selection set (e.g. "id name email")
   --pretty                Pretty-print JSON output
   --raw                   Print raw response body
   --toon                  Encode output as TOON (token-efficient for LLMs)
-  --head N                Limit output to first N records or lines
+  --head N                Limit output to first N records (arrays)
   --version               Show version
 
 Bake mode:
@@ -134,18 +117,9 @@ mcp2cli --mcp https://mcp.example.com/sse \
 
 # With scopes
 mcp2cli --mcp https://mcp.example.com/sse --oauth --oauth-scope "read write" --list
-
-# Force authorization code + PKCE even when a client secret exists
-mcp2cli --mcp https://mcp.example.com/sse \
-  --oauth-client-id env:OAUTH_CLIENT_ID \
-  --oauth-client-secret env:OAUTH_CLIENT_SECRET \
-  --oauth-flow authorization_code \
-  --list
 ```
 
 Tokens are cached in `~/.cache/mcp2cli/oauth/` and refreshed automatically.
-
-OAuth is not supported with `--mcp-stdio`.
 
 ### Transport selection (MCP HTTP only)
 
@@ -158,47 +132,6 @@ mcp2cli --mcp https://mcp.example.com/sse --transport sse --list
 
 # Force streamable HTTP (no SSE fallback)
 mcp2cli --mcp https://mcp.example.com/sse --transport streamable --list
-```
-
-### Persistent MCP sessions
-
-Use sessions when you want to reuse a live MCP connection across multiple calls instead of reconnecting on every command. This is useful for stateful MCP servers and for multi-step workflows against the same server.
-
-```bash
-# Start a named session for an MCP HTTP server
-mcp2cli --mcp https://mcp.example.com/sse --session-start mysession
-
-# Or for an MCP stdio server
-mcp2cli --mcp-stdio "npx @modelcontextprotocol/server-filesystem /tmp" --session-start files
-
-# Reuse the live session for later calls
-mcp2cli --session mysession --list
-mcp2cli --session mysession create-task --title "Fix bug"
-
-# Inspect and stop sessions
-mcp2cli --session-list
-mcp2cli --session-stop mysession
-```
-
-Sessions apply only to MCP sources (`--mcp` and `--mcp-stdio`). They do not apply to OpenAPI (`--spec`) or GraphQL (`--graphql`).
-
-### MCP resources and prompts
-
-MCP servers may expose more than tools. Check for resources and prompts when a server appears to have built-in documents, templates, or reusable prompt payloads.
-
-```bash
-# Resources
-mcp2cli --mcp https://mcp.example.com/sse --list-resources
-mcp2cli --mcp https://mcp.example.com/sse --list-resource-templates
-mcp2cli --mcp https://mcp.example.com/sse --read-resource "file:///docs/readme.md"
-
-# Prompts
-mcp2cli --mcp https://mcp.example.com/sse --list-prompts
-mcp2cli --mcp https://mcp.example.com/sse --get-prompt greeting --prompt-arg name=Alice
-
-# The same operations also work through a persistent session
-mcp2cli --session mysession --list-resources
-mcp2cli --session mysession --list-prompts
 ```
 
 ### GraphQL
@@ -231,39 +164,10 @@ mcp2cli --graphql https://api.example.com/graphql --search "user"
 
 `--search` implies `--list` — shows only matching tools.
 
-### Listing modes for agents
-
-When a source exposes many commands, use the list controls to keep discovery cheap and focused.
-
-```bash
-# Names only: minimal token cost
-mcp2cli --mcp https://mcp.example.com/sse --list --compact
-
-# Most relevant tools first
-mcp2cli --mcp https://mcp.example.com/sse --list --sort usage --top 20
-
-# Full descriptions when triaging similar commands
-mcp2cli --mcp https://mcp.example.com/sse --list --verbose
-```
-
-Defaults matter:
-
-- If usage history exists, plain `--list` defaults to usage-based sorting.
-- Otherwise, plain `--list` keeps the source's insertion order.
-- `--compact` is useful for LLM agents because it prints only names.
-
 ### POST with JSON body from stdin
 
 ```bash
 echo '{"name": "Fido", "tag": "dog"}' | mcp2cli --spec ./spec.json create-pet --stdin
-```
-
-`--stdin` also works for GraphQL variables and MCP tool arguments when sending structured JSON is easier than spelling out flags.
-
-```bash
-echo '{"limit": 10, "status": "open"}' | mcp2cli --graphql https://api.example.com/graphql listTasks --stdin
-echo '{"path":"/tmp/hello.txt"}' | mcp2cli --mcp-stdio "node server.js" read-file --stdin
-echo '{"message":"hello"}' | mcp2cli --session mysession echo --stdin
 ```
 
 ### Multipart file uploads
@@ -318,11 +222,6 @@ Configs stored in `~/.config/mcp2cli/baked.json` (override with `MCP2CLI_CONFIG_
 
 Specs and MCP tool lists are cached in `~/.cache/mcp2cli/` (1h TTL). Local files are never cached.
 
-This cache is not the same as a persistent MCP session:
-
-- Cache reuse avoids refetching specs, schemas, and MCP tool lists.
-- Session reuse keeps a live MCP `ClientSession` running in the background and lets later commands attach to it with `--session NAME`.
-
 ```bash
 mcp2cli --spec https://api.example.com/spec.json --refresh --list    # Force refresh
 mcp2cli --spec https://api.example.com/spec.json --cache-ttl 86400 --list  # 24h TTL
@@ -343,7 +242,7 @@ Best for large uniform arrays — 40-60% fewer tokens than JSON.
 mcp2cli --spec ./spec.json list-records --head 3 --pretty
 ```
 
-`--head N` slices JSON arrays to the first N elements and truncates plain-text output to the first N lines. Useful for datasets with oversized fields and for large MCP text resources.
+`--head N` slices JSON arrays to the first N elements. Useful for datasets with oversized fields (e.g. geo_shape polygons at ~200KB per record).
 
 ## Security
 

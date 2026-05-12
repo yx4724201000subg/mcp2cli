@@ -25,7 +25,41 @@ uv tool install mcp2cli
 mcp2cli ships with an installable [skill](https://skills.sh) that teaches AI coding agents (Claude Code, Cursor, Codex) how to use it. Once installed, your agent can discover and call any MCP server or OpenAPI endpoint — and even generate new skills from APIs.
 
 ```bash
-npx skills add knowsuchagency/mcp2cli --skill mcp2cli
+HOME="$(mktemp -d)" npx skills add knowsuchagency/mcp2cli --skill mcp2cli --agent codex -g -y --copy
+```
+
+If you want a reusable repo-local wrapper, use:
+
+```bash
+CODEX_HOME=~/.rayplus-codex ./scripts/install-codex-skill.sh
+```
+
+The wrapper intentionally requires `CODEX_HOME` to be set explicitly. It does not apply a default path. Under the hood it uses `npx skills add ...` and then copies the installed Codex skill into `$CODEX_HOME/skills/mcp2cli`, because the `skills` CLI installs to `~/.agents/skills` rather than `$CODEX_HOME`.
+
+If you want to do the same thing manually with only a few commands:
+
+```bash
+TMP_HOME="$(mktemp -d)"
+HOME="$TMP_HOME" npx skills add knowsuchagency/mcp2cli --skill mcp2cli --agent codex -g -y --copy
+mkdir -p "$CODEX_HOME/skills/mcp2cli"
+cp -R "$TMP_HOME/.agents/skills/mcp2cli"/. "$CODEX_HOME/skills/mcp2cli"/
+rm -rf "$TMP_HOME"
+```
+
+If Node.js is not installed yet, install it first:
+
+```bash
+# Add the NodeSource repository
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+
+# Install Node.js
+sudo apt-get install -y nodejs
+```
+
+Then run:
+
+```bash
+CODEX_HOME=~/.rayplus-codex npx skills add knowsuchagency/mcp2cli --skill mcp2cli
 ```
 
 After installing, try prompts like:
@@ -76,12 +110,21 @@ mcp2cli --spec https://api.example.com/openapi.json \
 # With specific scopes
 mcp2cli --graphql https://api.example.com/graphql --oauth --oauth-scope "read write" users
 
+# Force authorization code + PKCE even when a client secret exists
+mcp2cli --mcp https://mcp.example.com/sse \
+  --oauth-client-id "env:OAUTH_CLIENT_ID" \
+  --oauth-client-secret "env:OAUTH_CLIENT_SECRET" \
+  --oauth-flow authorization_code \
+  --list
+
 # Local spec file — use --base-url for OAuth discovery
 mcp2cli --spec ./openapi.json --base-url https://api.example.com --oauth --list
 ```
 
 Tokens are persisted in `~/.cache/mcp2cli/oauth/` so subsequent calls reuse existing tokens
 and refresh automatically when they expire.
+
+OAuth is not supported with `--mcp-stdio`.
 
 ### Secrets from environment or files
 
@@ -123,6 +166,47 @@ mcp2cli --mcp-stdio "node server.js" --env API_KEY=sk-... --env DEBUG=1 \
   search --query "test"
 ```
 
+### Persistent MCP sessions
+
+Reuse a live MCP connection across multiple calls when you are working with a stateful MCP server or a multi-step workflow against the same server.
+
+```bash
+# Start a named session for an MCP HTTP server
+mcp2cli --mcp https://mcp.example.com/sse --session-start mysession
+
+# Or for an MCP stdio server
+mcp2cli --mcp-stdio "npx @modelcontextprotocol/server-filesystem /tmp" --session-start files
+
+# Reuse the live session
+mcp2cli --session mysession --list
+mcp2cli --session mysession search --query "test"
+
+# Inspect and stop sessions
+mcp2cli --session-list
+mcp2cli --session-stop mysession
+```
+
+Sessions apply only to MCP sources (`--mcp` and `--mcp-stdio`). They do not apply to OpenAPI (`--spec`) or GraphQL (`--graphql`).
+
+### MCP resources and prompts
+
+Some MCP servers expose resources and prompts in addition to tools.
+
+```bash
+# Resources
+mcp2cli --mcp https://mcp.example.com/sse --list-resources
+mcp2cli --mcp https://mcp.example.com/sse --list-resource-templates
+mcp2cli --mcp https://mcp.example.com/sse --read-resource "file:///docs/readme.md"
+
+# Prompts
+mcp2cli --mcp https://mcp.example.com/sse --list-prompts
+mcp2cli --mcp https://mcp.example.com/sse --get-prompt greeting --prompt-arg name=Alice
+
+# The same operations also work through a persistent session
+mcp2cli --session mysession --list-resources
+mcp2cli --session mysession --list-prompts
+```
+
 ### OpenAPI mode
 
 ```bash
@@ -159,6 +243,10 @@ mcp2cli --graphql https://api.example.com/graphql users --fields "id name email"
 
 # With auth
 mcp2cli --graphql https://api.example.com/graphql --auth-header "Authorization:Bearer tok_..." users
+
+# Variables from stdin
+echo '{"limit": 10, "status": "open"}' | \
+  mcp2cli --graphql https://api.example.com/graphql listTasks --stdin
 ```
 
 mcp2cli introspects the endpoint, discovers queries and mutations, auto-generates selection sets, and constructs parameterized queries with proper variable declarations. No SDL parsing, no code generation — just point and run.
@@ -217,6 +305,19 @@ mcp2cli @myapi --list --sort alpha
 
 When usage data exists for a source, `--list` defaults to sorting by call frequency. Otherwise insertion order is preserved. Usage data is stored in `~/.cache/mcp2cli/usage.json`.
 
+For agents, these list controls are often the cheapest way to explore a large source:
+
+```bash
+# Names only: minimal token cost
+mcp2cli --mcp https://mcp.example.com/sse --list --compact
+
+# Most relevant tools first
+mcp2cli --mcp https://mcp.example.com/sse --list --sort usage --top 20
+
+# Full descriptions when triaging similar commands
+mcp2cli --mcp https://mcp.example.com/sse --list --verbose
+```
+
 ### Output control
 
 ```bash
@@ -229,12 +330,25 @@ mcp2cli --spec ./spec.json --raw get-data
 # Truncate large responses to first N records
 mcp2cli --spec ./spec.json list-records --head 5
 
+# Truncate text output to first N lines
+mcp2cli --mcp https://mcp.example.com/sse --read-resource "file:///docs/readme.md" --head 20
+
 # Pipe-friendly (compact JSON when not a TTY)
 mcp2cli --spec ./spec.json list-pets | jq '.[] | .name'
 
 # TOON output — token-efficient encoding for LLM consumption
 # Best for large uniform arrays (40-60% fewer tokens than JSON)
 mcp2cli --mcp https://mcp.example.com/sse --toon list-tags
+```
+
+`--stdin` is also available for MCP tool arguments:
+
+```bash
+echo '{"path":"/tmp/hello.txt"}' | \
+  mcp2cli --mcp-stdio "npx @modelcontextprotocol/server-filesystem /tmp" read-file --stdin
+
+echo '{"message":"hello"}' | \
+  mcp2cli --session mysession echo --stdin
 ```
 
 ### Caching
@@ -257,6 +371,11 @@ MCP2CLI_CACHE_DIR=/tmp/my-cache mcp2cli --spec ./spec.json --list
 
 Local file specs are never cached.
 
+Cache reuse is not the same as session reuse:
+
+- Cache reuse avoids refetching specs, schemas, and MCP tool lists.
+- Session reuse keeps a live MCP `ClientSession` running in the background and lets later commands attach with `--session NAME`.
+
 ## CLI reference
 
 ```
@@ -276,7 +395,14 @@ Options:
   --oauth                 Enable OAuth (authorization code + PKCE flow)
   --oauth-client-id ID    OAuth client ID (supports env:/file: prefixes)
   --oauth-client-secret S OAuth client secret (supports env:/file: prefixes)
+  --oauth-client-name N   OAuth client name for dynamic client registration
   --oauth-scope SCOPE     OAuth scope(s) to request
+  --oauth-redirect-uri U  Full OAuth callback URI
+  --oauth-flow FLOW       OAuth flow: auto|authorization_code|client_credentials
+  --session-start NAME    Start a persistent MCP session daemon
+  --session-stop NAME     Stop a named MCP session
+  --session-list          List active MCP sessions
+  --session NAME          Use an existing MCP session
   --cache-key KEY         Custom cache key
   --cache-ttl SECONDS     Cache TTL (default: 3600)
   --refresh               Bypass cache
@@ -285,12 +411,18 @@ Options:
   --sort MODE             Sort --list output: usage|recent|alpha|default
   --top N                 Show only the top N tools in --list output
   --compact               Space-separated tool names only, no descriptions
-  --verbose               Show full tool descriptions (unwrapped)
+  --verbose               Show full tool descriptions in --list output
+  --list-resources        List MCP resources
+  --list-resource-templates List MCP resource templates
+  --read-resource URI     Read an MCP resource by URI
+  --list-prompts          List MCP prompts
+  --get-prompt NAME       Get an MCP prompt by name
+  --prompt-arg K=V        Argument for --get-prompt (repeatable)
   --fields FIELDS         Override GraphQL selection set (e.g. "id name email")
   --pretty                Pretty-print JSON output
   --raw                   Print raw response body
   --toon                  Encode output as TOON (token-efficient for LLMs)
-  --head N                Limit output to first N records (arrays)
+  --head N                Limit output to first N records or lines
   --version               Show version
 
 Bake mode:
