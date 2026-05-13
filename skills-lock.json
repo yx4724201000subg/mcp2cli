@@ -2,7 +2,7 @@
   "version": 1,
   "skills": {
     "mcp2cli": {
-      "source": "knowsuchagency/mcp2cli",
+      "source": "yx4724201000subg/mcp2cli",
       "sourceType": "github",
       "skillPath": "skills/mcp2cli/SKILL.md",
       "computedHash": "834e5321fc6d1ed2ec01a5929d96f39e5a7e176f7f0c4d53bb86b57aabb7ae5e"

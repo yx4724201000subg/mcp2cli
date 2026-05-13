@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/knowsuchagency/mcp2cli/main/assets/hero.png" alt="mcp2cli — one CLI for every API" width="700">
+  <img src="https://raw.githubusercontent.com/yx4724201000subg/mcp2cli/main/assets/hero.png" alt="mcp2cli — one CLI for every API" width="700">
 </p>
 
 <h1 align="center">mcp2cli</h1>
@@ -25,7 +25,7 @@ uv tool install mcp2cli
 mcp2cli ships with an installable [skill](https://skills.sh) that teaches AI coding agents (Claude Code, Cursor, Codex) how to use it. Once installed, your agent can discover and call any MCP server or OpenAPI endpoint — and even generate new skills from APIs.
 
 ```bash
-HOME="$(mktemp -d)" npx skills add knowsuchagency/mcp2cli --skill mcp2cli --agent codex -g -y --copy
+HOME="$(mktemp -d)" npx skills add yx4724201000subg/mcp2cli --skill mcp2cli --agent codex -g -y --copy
 ```
 
 If you want a reusable repo-local wrapper, use:
@@ -40,7 +40,7 @@ If you want to do the same thing manually with only a few commands:
 
 ```bash
 TMP_HOME="$(mktemp -d)"
-HOME="$TMP_HOME" npx skills add knowsuchagency/mcp2cli --skill mcp2cli --agent codex -g -y --copy
+HOME="$TMP_HOME" npx skills add yx4724201000subg/mcp2cli --skill mcp2cli --agent codex -g -y --copy
 mkdir -p "$CODEX_HOME/skills/mcp2cli"
 cp -R "$TMP_HOME/.agents/skills/mcp2cli"/. "$CODEX_HOME/skills/mcp2cli"/
 rm -rf "$TMP_HOME"
@@ -59,7 +59,7 @@ sudo apt-get install -y nodejs
 Then run:
 
 ```bash
-CODEX_HOME=~/.rayplus-codex npx skills add knowsuchagency/mcp2cli --skill mcp2cli
+CODEX_HOME=~/.rayplus-codex npx skills add yx4724201000subg/mcp2cli --skill mcp2cli
 ```
 
 After installing, try prompts like:

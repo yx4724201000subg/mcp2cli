@@ -28,7 +28,7 @@ command -v npx >/dev/null 2>&1 || {
 TMP_HOME="$(mktemp -d)"
 trap 'rm -rf "$TMP_HOME"' EXIT
 
-HOME="$TMP_HOME" npx skills add knowsuchagency/mcp2cli --skill mcp2cli --agent codex -g -y --copy
+HOME="$TMP_HOME" npx skills add yx4724201000subg/mcp2cli --skill mcp2cli --agent codex -g -y --copy
 
 SOURCE_DIR="$TMP_HOME/.agents/skills/mcp2cli"
 TARGET_DIR="$CODEX_HOME/skills/mcp2cli"
