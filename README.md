@@ -12,12 +12,15 @@
 
 ## Install
 
-```bash
-# Run directly without installing
-uvx mcp2cli --help
+> 本项目基于上游 `mcp2cli` 进行过修改，**不要**使用 `uvx mcp2cli` 或 `uv tool install mcp2cli`
+> 从 PyPI 安装，那样会拉到上游未修改的版本。请始终以下面方式从仓库内的 `mcp2cli/` 目录安装。
 
-# Or install globally
-uv tool install mcp2cli
+```bash
+# Run directly from the local subtree (no install needed)
+uvx --from ./mcp2cli mcp2cli --help
+
+# Or install globally from the local subtree
+uv tool install --from ./mcp2cli mcp2cli
 ```
 
 ## AI Agent Skill
