@@ -2371,7 +2371,7 @@ async def _mcp_session(
             {
                 "name": t.name,
                 "description": t.description or "",
-                "inputSchema": t.inputSchema or {},
+                "inputSchema": _tool_input_schema(t),
             }
             for t in result.tools
         ]
@@ -2642,6 +2642,16 @@ def session_start(
     sys.exit(1)
 
 
+
+def _tool_input_schema(tool) -> dict:
+    """MCP SDK Tool: prefer input_schema (mcp 2.x); fall back to inputSchema / dict."""
+    if isinstance(tool, dict):
+        return tool.get("inputSchema") or tool.get("input_schema") or {}
+    schema = getattr(tool, "input_schema", None)
+    if schema is None:
+        schema = getattr(tool, "inputSchema", None)
+    return schema or {}
+
 def _extract_content_parts(content_list, *, attrs=("text", "data")) -> str:
     """Extract text/data/blob from MCP content objects, joined by newline."""
     parts = []
@@ -2656,7 +2666,7 @@ def _extract_content_parts(content_list, *, attrs=("text", "data")) -> str:
 async def _dispatch_list_tools(session, params):
     result = await session.list_tools()
     return [
-        {"name": t.name, "description": t.description or "", "inputSchema": t.inputSchema or {}}
+        {"name": t.name, "description": t.description or "", "inputSchema": _tool_input_schema(t)}
         for t in result.tools
     ]
 
@@ -3138,7 +3148,7 @@ def _fetch_mcp_tools(
             {
                 "name": t.name,
                 "description": t.description or "",
-                "inputSchema": t.inputSchema or {},
+                "inputSchema": _tool_input_schema(t),
             }
             for t in result.tools
         )
